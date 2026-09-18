@@ -2,16 +2,12 @@ package command
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
 	"github.com/zeromake/docker-debug/internal/config"
-	"github.com/zeromake/docker-debug/pkg/tty"
 )
 
 var rootCmd = newExecCommand()
@@ -48,11 +44,7 @@ func newExecCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			options.container = args[0]
 			options.command = args[1:]
-			err := runExec(options)
-			if errors.Is(err, context.Canceled) {
-				return nil
-			}
-			return err
+			return runExec(options)
 		},
 	}
 
@@ -101,116 +93,66 @@ func buildCli(ctx context.Context, options execOptions) (*DebugCli, error) {
 		opts = append(opts, WithClientConfig(dockerConfig))
 	} else {
 		name := conf.DockerConfigDefault
-		opt, ok := conf.DockerConfig[conf.DockerConfigDefault]
 		if options.name != "" {
 			name = options.name
-			opt, ok = conf.DockerConfig[options.name]
 		}
+		opt, ok := conf.DockerConfig[name]
 		if !ok {
 			return nil, errors.Errorf("not find %s docker config", name)
 		}
 		opts = append(opts, WithClientConfig(opt))
 	}
 
-	cli, err := NewDebugCli(opts...)
-	if err != nil {
-		return nil, err
-	}
-	cli.ctx = ctx
-	return cli, err
+	return NewDebugCli(ctx, opts...)
 }
 
 func runExec(options execOptions) error {
 	var ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
 	logrus.SetLevel(logrus.ErrorLevel)
-	var containerID string
+
 	cli, err := buildCli(ctx, options)
 	if err != nil {
-		cancel()
 		return err
 	}
-	go func() {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-		<-c
-		cancel()
-	}()
+	defer cli.Close()
+
 	conf := cli.Config()
-	defer func() {
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				cli.ctx = context.Background()
-			}
-		}
-		if containerID != "" {
-			err = cli.ContainerClean(containerID)
-			if err != nil {
-				logrus.Debugf("%+v", err)
-			}
-		}
-		err = cli.Close()
-		if err != nil {
-			logrus.Debugf("%+v", err)
-		}
-	}()
-	_, err = cli.Ping()
-	if err != nil {
-		cancel()
-		return err
-	}
 	// find image
 	images, err := cli.FindImage(conf.Image)
 	if err != nil {
-		cancel()
 		return err
 	}
-
 	if len(images) == 0 {
 		// pull image
 		err = cli.PullImage(conf.Image)
 		if err != nil {
-			cancel()
 			return err
 		}
 	}
-	containerID, err = cli.FindContainer(options.container)
+
+	containerID, err := cli.CreateContainer(options.container, options)
 	if err != nil {
-		cancel()
 		return err
 	}
-	containerID, err = cli.CreateContainer(containerID, options)
-	if err != nil {
-		cancel()
-		return err
-	}
+	defer cli.ContainerClean(ctx, containerID)
+
 	resp, err := cli.ExecCreate(options, containerID)
 	if err != nil {
-		cancel()
 		return err
 	}
 
 	errCh := make(chan error, 1)
+	defer close(errCh)
 
 	go func() {
-		defer close(errCh)
-		errCh <- func() error {
-			return cli.ExecStart(options, resp.ID)
-		}()
+		errCh <- cli.ExecStart(options, resp.ID)
 	}()
-	if cli.In().IsTerminal() {
-		if err := tty.MonitorTtySize(ctx, cli.Client(), cli.Out(), resp.ID, true); err != nil {
-			_, _ = fmt.Fprintln(cli.Err(), "Error monitoring TTY size:", err)
-		}
-	}
+	go func() {
+		errCh <- cli.WatchContainer(ctx, options.container)
+	}()
 
-	err = <-errCh
-	if err != nil {
-		logrus.Debugf("Error hijack: %s", err)
-		cancel()
-		return err
-	}
-	cancel()
-	return nil
+	return <-errCh
 }
 
 // Execute main func

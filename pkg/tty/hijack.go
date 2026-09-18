@@ -2,10 +2,6 @@ package tty
 
 import (
 	"context"
-	"io"
-	"runtime"
-	"sync"
-
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/docker/docker/pkg/stdcopy"
@@ -13,6 +9,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/zeromake/docker-debug/pkg/stream"
+	"io"
+	"runtime"
+	"sync"
 )
 
 // The default escape key sequence: ctrl-p, ctrl-q
@@ -44,26 +43,26 @@ func (h *HijackedIOStreamer) Stream(ctx context.Context) error {
 	}
 
 	defer restoreInput()
-
+	defer h.Resp.Close()
 	outputDone := h.beginOutputStream(restoreInput)
 	inputDone, detached := h.beginInputStream(restoreInput)
 
 	select {
-	case err := <-outputDone:
+	case err = <-outputDone:
 		return errors.WithStack(err)
 	case <-inputDone:
 		// Input stream has closed.
 		if h.OutputStream != nil || h.ErrorStream != nil {
 			// Wait for output to complete streaming.
 			select {
-			case err := <-outputDone:
+			case err = <-outputDone:
 				return errors.WithStack(err)
 			case <-ctx.Done():
 				return errors.WithStack(ctx.Err())
 			}
 		}
 		return nil
-	case err := <-detached:
+	case err = <-detached:
 		// Got a detach key sequence.
 		return errors.WithStack(err)
 	case <-ctx.Done():

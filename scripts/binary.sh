@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/env bash
 #
 # Build a static binary for the host OS/ARCH
 #
@@ -8,7 +8,7 @@ source ./scripts/variables.env
 if [[ -n $OS ]]; then
     source ./scripts/variables.${OS}.env
 fi
-echo "Building statically linked $TARGET"
+echo "Building statically linked $VERSION $TARGET"
 export CGO_ENABLED=0
 go build -o "${TARGET}" --ldflags "${LDFLAGS}" "${SOURCE}"
 

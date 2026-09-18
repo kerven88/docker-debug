@@ -1,6 +1,6 @@
 # Docker-debug
 
-[![Build Status](https://travis-ci.com/zeromake/docker-debug.svg?branch=master)](https://travis-ci.com/zeromake/docker-debug)
+[![Build Status](https://github.com/zeromake/docker-debug/actions/workflows/release.yml/badge.svg)](https://github.com/zeromake/docker-debug/actions/workflows/release.yml)
 [![Go Report Card](https://goreportcard.com/badge/zeromake/docker-debug)](https://goreportcard.com/report/zeromake/docker-debug)
 
 [English](README.md) ∙ [简体中文](README-zh-Hans.md)
@@ -20,28 +20,68 @@ Install the `docker-debug` cli
 
 **mac brew**
 ```shell
-brew tap zeromake/docker-debug
-brew install docker-debug
+brew install zeromake/docker-debug/docker-debug
 ```
 
 **download binary file**
-``` shell
-# MacOS
-curl -Lo docker-debug https://github.com/zeromake/docker-debug/releases/download/0.7.3/docker-debug-darwin-amd64
+
+<details>
+<summary>
+<kbd>use bash or zsh</kbd>
+</summary>
+
+``` bash
+# get latest tag
+VERSION=`curl -w '%{url_effective}' -I -L -s -S https://github.com/zeromake/docker-debug/releases/latest -o /dev/null | awk -F/ '{print $NF}'`
+
+# MacOS Intel
+curl -Lo docker-debug https://github.com/zeromake/docker-debug/releases/download/${VERSION}/docker-debug-darwin-amd64
+
+# MacOS M1
+curl -Lo docker-debug https://github.com/zeromake/docker-debug/releases/download/${VERSION}/docker-debug-darwin-arm64
 
 # Linux
-curl -Lo docker-debug https://github.com/zeromake/docker-debug/releases/download/0.7.3/docker-debug-linux-amd64
+curl -Lo docker-debug https://github.com/zeromake/docker-debug/releases/download/${VERSION}/docker-debug-linux-amd64
 
 chmod +x ./docker-debug
 sudo mv docker-debug /usr/local/bin/
 
 # Windows
-curl -Lo docker-debug.exe https://github.com/zeromake/docker-debug/releases/download/0.7.3/docker-debug-windows-amd64.exe
+curl -Lo docker-debug.exe https://github.com/zeromake/docker-debug/releases/download/${VERSION}/docker-debug-windows-amd64.exe
 ```
+
+</details>
+
+<details>
+<summary>
+<kbd>use fish</kbd>
+</summary>
+
+``` fish
+# get latest tag
+set VERSION (curl -w '%{url_effective}' -I -L -s -S https://github.com/zeromake/docker-debug/releases/latest -o /dev/null | awk -F/ '{print $NF}')
+
+# MacOS Intel
+curl -Lo docker-debug https://github.com/zeromake/docker-debug/releases/download/$VERSION/docker-debug-darwin-amd64
+
+# MacOS M1
+curl -Lo docker-debug https://github.com/zeromake/docker-debug/releases/download/$VERSION/docker-debug-darwin-arm64
+
+# Linux
+curl -Lo docker-debug https://github.com/zeromake/docker-debug/releases/download/$VERSION/docker-debug-linux-amd64
+
+chmod +x ./docker-debug
+sudo mv docker-debug /usr/local/bin/
+
+# Windows
+curl -Lo docker-debug.exe https://github.com/zeromake/docker-debug/releases/download/$VERSION/docker-debug-windows-amd64.exe
+```
+</details>
+
 
 download the latest binary from the [release page](https://github.com/zeromake/docker-debug/releases/lastest) and add it to your PATH.
 
-Try it out!
+**Try it out!**
 ``` shell
 # docker-debug [OPTIONS] CONTAINER COMMAND [ARG...] [flags]
 docker-debug CONTAINER COMMAND
@@ -64,7 +104,7 @@ mv docker-debug /usr/local/bin
 docker-debug uses nicolaka/netshoot as the default image to run debug container.
 You can override the default image with cli flag, or even better, with config file ~/.docker-debug/config.toml
 ``` toml
-version = "0.7.3"
+version = "0.7.5"
 image = "nicolaka/netshoot:latest"
 mount_dir = "/mnt/container"
 timeout = 10000000000
